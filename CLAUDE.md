@@ -37,10 +37,14 @@ src/main/java/com/qi/qiaiaagent/
 │   └── CorsConfig.java                # 跨域配置（开发环境允许所有来源）
 ├── constant/
 │   └── FileConstant.java              # 文件路径常量
-└── controller/
-    ├── ChatController.java            # /api/chat/sync + /api/chat/stream + /api/chat/history
-    ├── ChatRequest.java               # 请求 DTO（message + sessionId）
-    └── HealthController.java          # GET /api/health 健康检查
+├── controller/
+│   ├── ChatController.java            # HTTP 路由（仅做请求/响应转发，无业务逻辑）
+│   ├── ChatRequest.java               # 请求 DTO（message + sessionId）
+│   └── HealthController.java          # GET /api/health 健康检查
+└── service/
+    ├── ChatService.java               # 聊天业务接口
+    └── impl/
+        └── ChatServiceImpl.java       # 聊天业务实现（调用模型 + 记忆管理）
 
 src/main/resources/
 ├── application.yml                    # DeepSeek 配置（API Key、模型参数）
