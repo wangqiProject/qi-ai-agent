@@ -22,3 +22,6 @@ application-local.yml
 
 # Playwright (test artifacts)
 .playwright-mcp/
+
+# Kryo 对话记忆文件
+tmp/

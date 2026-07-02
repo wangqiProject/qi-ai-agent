@@ -1,12 +1,61 @@
-let currentMode = 'stream';
+// ===== 会话管理 =====
+
+const STORAGE_KEY = 'qi_ai_session_id';
+
+function getSessionId() {
+    let id = localStorage.getItem(STORAGE_KEY);
+    if (!id) {
+        id = crypto.randomUUID();
+        localStorage.setItem(STORAGE_KEY, id);
+    }
+    return id;
+}
+
+function setSessionId(id) {
+    localStorage.setItem(STORAGE_KEY, id);
+}
+
+// ===== DOM 引用 =====
 
 const messagesContainer = document.getElementById('chatMessages');
+const welcomeMessage = document.getElementById('welcomeMessage');
 const messageInput = document.getElementById('messageInput');
 const sendBtn = document.getElementById('sendBtn');
 const streamBtn = document.getElementById('streamBtn');
 const syncBtn = document.getElementById('syncBtn');
 
-// 切换模式
+let currentMode = 'stream';
+const TIME_OPTIONS = { hour: '2-digit', minute: '2-digit' };
+
+// ===== Markdown 配置 =====
+
+marked.setOptions({
+    breaks: false,
+    gfm: true,
+});
+
+function renderMarkdown(text) {
+    // marked 默认会转义 XSS，但为了安全再加一层过滤
+    return marked.parse(text);
+}
+
+// ===== 工具函数 =====
+
+function formatTime() {
+    return new Date().toLocaleTimeString('zh-CN', TIME_OPTIONS);
+}
+
+function scrollToBottom() {
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function setInputDisabled(disabled) {
+    messageInput.disabled = disabled;
+    sendBtn.disabled = disabled;
+}
+
+// ===== 切换模式 =====
+
 function switchMode(mode) {
     currentMode = mode;
     if (mode === 'stream') {
@@ -18,26 +67,83 @@ function switchMode(mode) {
     }
 }
 
-// 发送消息
+// ===== 新建会话 =====
+
+function newSession() {
+    const newId = crypto.randomUUID();
+    setSessionId(newId);
+    // 清空消息区
+    document.querySelectorAll('.message').forEach(el => el.remove());
+    welcomeMessage.style.display = 'block';
+    scrollToBottom();
+}
+
+// ===== 渲染消息 =====
+
+function appendMessage(text, role) {
+    welcomeMessage.style.display = 'none';
+
+    const div = document.createElement('div');
+    div.className = `message ${role}`;
+
+    const time = formatTime();
+    const roleLabel = role === 'user' ? '你' : 'AI';
+    const avatarText = role === 'user' ? '你' : 'AI';
+
+    // 结构化消息：头部 + 正文
+    div.innerHTML = `
+        <div class="message-header">
+            <span class="message-avatar">${avatarText}</span>
+            <span class="message-role-label">${roleLabel}</span>
+            <span class="message-time">${time}</span>
+        </div>
+        <div class="message-body markdown-content">${renderMarkdown(text)}</div>
+    `;
+
+    messagesContainer.appendChild(div);
+    scrollToBottom();
+    return div;
+}
+
+// 流式模式：先创建空消息体，实时更新
+function createStreamingBubble() {
+    welcomeMessage.style.display = 'none';
+
+    const time = formatTime();
+    const div = document.createElement('div');
+    div.className = 'message assistant streaming';
+    div.innerHTML = `
+        <div class="message-header">
+            <span class="message-avatar">AI</span>
+            <span class="message-role-label">AI</span>
+            <span class="message-time">${time}</span>
+        </div>
+        <div class="message-body markdown-content streaming-body"></div>
+    `;
+    messagesContainer.appendChild(div);
+    scrollToBottom();
+
+    // 返回正文元素，方便更新内容
+    return div.querySelector('.message-body');
+}
+
+// ===== 发送消息 =====
+
 async function sendMessage() {
     const message = messageInput.value.trim();
     if (!message) return;
 
-    // 禁用输入
     setInputDisabled(true);
-
-    // 添加用户消息
     appendMessage(message, 'user');
     messageInput.value = '';
 
-    // 滚动到底部
-    scrollToBottom();
+    const sessionId = getSessionId();
 
     try {
         if (currentMode === 'stream') {
-            await sendStream(message);
+            await sendStream(message, sessionId);
         } else {
-            await sendSync(message);
+            await sendSync(message, sessionId);
         }
     } catch (e) {
         appendMessage('网络错误：' + e.message, 'assistant');
@@ -48,84 +154,70 @@ async function sendMessage() {
 }
 
 // 同步请求
-async function sendSync(message) {
+async function sendSync(message, sessionId) {
     const response = await fetch('/api/chat/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ message, sessionId }),
     });
     const data = await response.json();
+    // 更新 sessionId（如果后端生成了新的）
+    if (data.sessionId && data.sessionId !== sessionId) {
+        setSessionId(data.sessionId);
+    }
     appendMessage(data.reply, 'assistant');
 }
 
 // 流式请求
-async function sendStream(message) {
+async function sendStream(message, sessionId) {
     const response = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ message, sessionId }),
     });
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
-    let bubble = createStreamingBubble();
+    const bodyEl = createStreamingBubble();
     let fullText = '';
-    let buffer = '';
 
     while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        // 保留最后一个不完整的行到下一次读取
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-            if (line.startsWith('data:')) {
-                const text = line.substring(5).trim();
-                if (text) {
-                    fullText += text;
-                    bubble.textContent = fullText;
-                    scrollToBottom();
-                }
-            }
-        }
+        // 直接拼接原始 chunk 文本
+        fullText += decoder.decode(value, { stream: true });
+        // 渐进式 Markdown 渲染（边接收边格式化）
+        bodyEl.innerHTML = renderMarkdown(fullText);
+        scrollToBottom();
     }
 
-    // 流式结束，移除闪烁光标
-    bubble.classList.remove('streaming');
+    // 流式结束，移除光标
+    const parent = bodyEl.closest('.message');
+    if (parent) {
+        parent.classList.remove('streaming');
+    }
 }
 
-// 添加消息
-function appendMessage(text, role) {
-    const div = document.createElement('div');
-    div.className = `message ${role}`;
-    div.textContent = text;
-    messagesContainer.appendChild(div);
-    scrollToBottom();
+// ===== 恢复历史消息 =====
+
+async function loadHistory() {
+    const sessionId = getSessionId();
+    try {
+        const response = await fetch(`/api/chat/history?sessionId=${encodeURIComponent(sessionId)}`);
+        const messages = await response.json();
+        if (messages && messages.length > 0) {
+            welcomeMessage.style.display = 'none';
+            for (const msg of messages) {
+                appendMessage(msg.content, msg.role);
+            }
+        }
+    } catch (e) {
+        console.warn('加载历史消息失败:', e);
+    }
 }
 
-// 创建流式消息气泡
-function createStreamingBubble() {
-    const div = document.createElement('div');
-    div.className = 'message assistant streaming';
-    div.textContent = '';
-    messagesContainer.appendChild(div);
-    scrollToBottom();
-    return div;
-}
-
-// 禁用/启用输入
-function setInputDisabled(disabled) {
-    messageInput.disabled = disabled;
-    sendBtn.disabled = disabled;
-}
-
-// 滚动到底部
-function scrollToBottom() {
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-}
+// ===== 初始化 =====
 
 // 回车发送
 messageInput.addEventListener('keydown', (e) => {
@@ -134,3 +226,6 @@ messageInput.addEventListener('keydown', (e) => {
         sendMessage();
     }
 });
+
+// 页面加载后恢复历史
+loadHistory();

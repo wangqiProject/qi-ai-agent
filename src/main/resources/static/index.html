@@ -5,21 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DeepSeek Chat</title>
     <link rel="stylesheet" href="/css/style.css">
+    <!-- marked: Markdown 渲染库 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
     <div class="chat-container">
         <!-- Header -->
         <div class="chat-header">
-            <h1>DeepSeek Chat</h1>
-            <div class="mode-toggle">
-                <button id="streamBtn" class="mode-btn active" onclick="switchMode('stream')">流式</button>
-                <button id="syncBtn" class="mode-btn" onclick="switchMode('sync')">同步</button>
+            <div class="header-left">
+                <h1>DeepSeek Chat</h1>
+            </div>
+            <div class="header-right">
+                <div class="mode-toggle">
+                    <button id="streamBtn" class="mode-btn active" onclick="switchMode('stream')">流式</button>
+                    <button id="syncBtn" class="mode-btn" onclick="switchMode('sync')">同步</button>
+                </div>
+                <button id="newSessionBtn" class="new-session-btn" onclick="newSession()" title="新建会话">＋ 新建会话</button>
             </div>
         </div>
 
         <!-- Messages -->
         <div class="chat-messages" id="chatMessages">
-            <div class="welcome-message">
+            <div class="welcome-message" id="welcomeMessage">
                 <p>你好！我是 DeepSeek AI 助手，有什么可以帮助你的吗？</p>
             </div>
         </div>
