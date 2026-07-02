@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeepSeek Chat</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="chat-container">
+        <!-- Header -->
+        <div class="chat-header">
+            <h1>DeepSeek Chat</h1>
+            <div class="mode-toggle">
+                <button id="streamBtn" class="mode-btn active" onclick="switchMode('stream')">流式</button>
+                <button id="syncBtn" class="mode-btn" onclick="switchMode('sync')">同步</button>
+            </div>
+        </div>
+
+        <!-- Messages -->
+        <div class="chat-messages" id="chatMessages">
+            <div class="welcome-message">
+                <p>你好！我是 DeepSeek AI 助手，有什么可以帮助你的吗？</p>
+            </div>
+        </div>
+
+        <!-- Input -->
+        <div class="chat-input">
+            <input type="text" id="messageInput" placeholder="输入消息..." autocomplete="off">
+            <button id="sendBtn" onclick="sendMessage()">发送</button>
+        </div>
+    </div>
+
+    <script src="/js/chat.js"></script>
+</body>
+</html>

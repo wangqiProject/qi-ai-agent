@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: qi-ai-agent
+  ai:
+    deepseek:
+      api-key: ${DEEPSEEK_API_KEY:sk-d9f115faf1f04574bba68bbc60dfa9f2}
+      chat:
+        options:
+          model: deepseek-chat
+          temperature: 0.8
+
+server:
+  port: 8080
+
+logging:
+  level:
+    org.springframework.ai: DEBUG
