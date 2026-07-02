@@ -68,3 +68,6 @@ src/main/resources/
 - `kryo 5.6.2` — 对话记忆文件序列化
 - Lombok（可选，仅编译期）
 - Spring AI 仓库：Spring Milestones、Spring Snapshots、Central Portal Snapshots
+
+### 访问地址
+- `http://localhost:8080/` - 启动后访问地址
